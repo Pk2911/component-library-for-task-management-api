@@ -52,7 +52,7 @@ src/
 
 ```
 
-##Running Locally
+## Running Locally
 
 Install dependencies:
 
@@ -62,7 +62,7 @@ npm install
 
 ```
 
-##Start the development server:
+## Start the development server:
 
 ```text
 
