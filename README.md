@@ -63,6 +63,8 @@ npm run dev
 Open:
 
 http://localhost:3000
+
+```
 Future Integration
 
 The components are kept independent from my Task Management API repo so they can be reused when the frontend is connected to the backend.
