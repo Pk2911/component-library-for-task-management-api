@@ -50,17 +50,29 @@ src/
     └── Modal/
         └── Modal.tsx
 
-Running Locally
+```
+
+##Running Locally
 
 Install dependencies:
 
+```text
+
 npm install
 
-Start the development server:
+```
+
+##Start the development server:
+
+```text
 
 npm run dev
 
+```
+
 Open:
+
+```text
 
 http://localhost:3000
 
