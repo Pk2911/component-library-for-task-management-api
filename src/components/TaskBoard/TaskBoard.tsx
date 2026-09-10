@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   useMutation,
@@ -28,12 +28,6 @@ import {
 
 type StatusFilter = "ALL" | TaskStatus;
 
-type TaskFormData = {
-  title: string;
-  description: string;
-  status: TaskStatus;
-};
-
 export default function TaskBoard() {
   const queryClient = useQueryClient();
 
@@ -41,6 +35,10 @@ export default function TaskBoard() {
   const [statusFilter, setStatusFilter] =
     useState<StatusFilter>("ALL");
   const [assigneeFilter, setAssigneeFilter] = useState("ALL");
+
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const tasksPerPage = 5;
 
   const [isCreateModalOpen, setIsCreateModalOpen] =
     useState(false);
@@ -60,7 +58,6 @@ export default function TaskBoard() {
   const [selectedUserId, setSelectedUserId] =
     useState("");
 
-  // Stores the ID of the task whose optimistic update failed.
   const [failedMarkDoneTaskId, setFailedMarkDoneTaskId] =
     useState<number | null>(null);
 
@@ -145,15 +142,6 @@ export default function TaskBoard() {
     },
   });
 
-  /*
-   * Optimistic update:
-   *
-   * 1. Cancel the current tasks request.
-   * 2. Save the old tasks.
-   * 3. Immediately change the selected task to DONE.
-   * 4. If the request fails, restore the old tasks.
-   * 5. Finally refetch the real server data.
-   */
   const markDoneMutation = useMutation({
     mutationFn: markTaskDone,
 
@@ -193,7 +181,6 @@ export default function TaskBoard() {
         );
       }
 
-      // Remember which task actually failed.
       setFailedMarkDoneTaskId(taskId);
     },
 
@@ -203,14 +190,6 @@ export default function TaskBoard() {
       });
     },
   });
-
-  const assignees = useMemo(() => {
-    if (!users) {
-      return [];
-    }
-
-    return users;
-  }, [users]);
 
   const filteredTasks = useMemo(() => {
     if (!tasks) {
@@ -246,6 +225,65 @@ export default function TaskBoard() {
     statusFilter,
     assigneeFilter,
   ]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(
+      filteredTasks.length / tasksPerPage,
+    ),
+  );
+
+  useEffect(() => {
+  if (currentPage > totalPages) {
+    setCurrentPage(totalPages);
+  }
+}, [currentPage, totalPages]);
+
+  const paginatedTasks = useMemo(() => {
+    const startIndex =
+      (currentPage - 1) * tasksPerPage;
+
+    const endIndex =
+      startIndex + tasksPerPage;
+
+    return filteredTasks.slice(
+      startIndex,
+      endIndex,
+    );
+  }, [filteredTasks, currentPage]);
+
+  const handleSearchChange = (
+    value: string,
+  ) => {
+    setSearch(value);
+    setCurrentPage(1);
+  };
+
+  const handleStatusFilterChange = (
+    value: StatusFilter,
+  ) => {
+    setStatusFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleAssigneeFilterChange = (
+    value: string,
+  ) => {
+    setAssigneeFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handlePreviousPage = () => {
+    setCurrentPage((page) =>
+      Math.max(1, page - 1),
+    );
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage((page) =>
+      Math.min(totalPages, page + 1),
+    );
+  };
 
   const openCreateModal = () => {
     setTitle("");
@@ -363,9 +401,11 @@ export default function TaskBoard() {
             </h2>
 
             <p className="mt-1 text-sm text-gray-500">
-              Showing {filteredTasks.length} of{" "}
-              {tasks.length} task
-              {tasks.length === 1 ? "" : "s"}
+              Showing {paginatedTasks.length} of{" "}
+              {filteredTasks.length} task
+              {filteredTasks.length === 1
+                ? ""
+                : "s"}
             </p>
           </div>
 
@@ -388,7 +428,9 @@ export default function TaskBoard() {
               type="search"
               value={search}
               onChange={(event) =>
-                setSearch(event.target.value)
+                handleSearchChange(
+                  event.target.value,
+                )
               }
               placeholder="Search by title..."
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-blue-500"
@@ -407,7 +449,7 @@ export default function TaskBoard() {
               id="status-filter"
               value={statusFilter}
               onChange={(event) =>
-                setStatusFilter(
+                handleStatusFilterChange(
                   event.target.value as StatusFilter,
                 )
               }
@@ -436,7 +478,9 @@ export default function TaskBoard() {
               id="assignee-filter"
               value={assigneeFilter}
               onChange={(event) =>
-                setAssigneeFilter(event.target.value)
+                handleAssigneeFilterChange(
+                  event.target.value,
+                )
               }
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-blue-500"
             >
@@ -448,7 +492,7 @@ export default function TaskBoard() {
                 Unassigned
               </option>
 
-              {assignees.map((user) => (
+              {users?.map((user) => (
                 <option
                   key={user.id}
                   value={user.id}
@@ -471,105 +515,132 @@ export default function TaskBoard() {
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {filteredTasks.map((task) => (
-              <div
-                key={task.id}
-                className="rounded-lg border border-gray-200 p-4"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="font-medium text-gray-900">
-                      {task.title}
-                    </h3>
+          <>
+            <div className="space-y-3">
+              {paginatedTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="rounded-lg border border-gray-200 p-4"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-medium text-gray-900">
+                        {task.title}
+                      </h3>
 
-                    <p className="mt-1 text-sm text-gray-500">
-                      {task.description}
-                    </p>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {task.description}
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                      {task.status}
+                    </span>
                   </div>
 
-                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-                    {task.status}
-                  </span>
-                </div>
+                  <div className="mt-3 text-xs text-gray-500">
+                    Assignee:{" "}
+                    {task.userId !== null
+                      ? users?.find(
+                          (user) =>
+                            user.id === task.userId,
+                        )?.email ??
+                        `User ${task.userId}`
+                      : "Unassigned"}
+                  </div>
 
-                <div className="mt-3 text-xs text-gray-500">
-                  Assignee:{" "}
-                  {task.userId !== null
-                    ? users?.find(
-                        (user) =>
-                          user.id === task.userId,
-                      )?.email ??
-                      `User ${task.userId}`
-                    : "Unassigned"}
-                </div>
-
-                {failedMarkDoneTaskId === task.id && (
-                  <p className="mt-3 text-sm text-red-600">
-                    Failed to mark task as done. Please try
-                    again.
-                  </p>
-                )}
-
-                {deleteTaskMutation.isError &&
-                  deleteTaskMutation.variables ===
+                  {failedMarkDoneTaskId ===
                     task.id && (
                     <p className="mt-3 text-sm text-red-600">
-                      Failed to delete task.
+                      Failed to mark task as done.
+                      Please try again.
                     </p>
                   )}
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={() =>
-                      openEditModal(task)
-                    }
-                  >
-                    Edit
-                  </Button>
+                  {deleteTaskMutation.isError &&
+                    deleteTaskMutation.variables ===
+                      task.id && (
+                      <p className="mt-3 text-sm text-red-600">
+                        Failed to delete task.
+                      </p>
+                    )}
 
-                  <Button
-                    variant="secondary"
-                    onClick={() =>
-                      openAssignModal(task)
-                    }
-                  >
-                    Assign
-                  </Button>
-
-                  {task.status !== "DONE" && (
+                  <div className="mt-4 flex flex-wrap gap-2">
                     <Button
+                      variant="secondary"
                       onClick={() =>
-                        handleMarkDone(task.id)
+                        openEditModal(task)
+                      }
+                    >
+                      Edit
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        openAssignModal(task)
+                      }
+                    >
+                      Assign
+                    </Button>
+
+                    {task.status !== "DONE" && (
+                      <Button
+                        onClick={() =>
+                          handleMarkDone(task.id)
+                        }
+                        loading={
+                          markDoneMutation.isPending &&
+                          markDoneMutation.variables ===
+                            task.id
+                        }
+                      >
+                        Mark Done
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="danger"
+                      onClick={() =>
+                        handleDeleteTask(task.id)
                       }
                       loading={
-                        markDoneMutation.isPending &&
-                        markDoneMutation.variables ===
+                        deleteTaskMutation.isPending &&
+                        deleteTaskMutation.variables ===
                           task.id
                       }
                     >
-                      Mark Done
+                      Delete
                     </Button>
-                  )}
-
-                  <Button
-                    variant="danger"
-                    onClick={() =>
-                      handleDeleteTask(task.id)
-                    }
-                    loading={
-                      deleteTaskMutation.isPending &&
-                      deleteTaskMutation.variables ===
-                        task.id
-                    }
-                  >
-                    Delete
-                  </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+
+            <div className="mt-6 flex items-center justify-between border-t border-gray-200 pt-4">
+              <Button
+                variant="secondary"
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+              >
+                ← Previous
+              </Button>
+
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages}
+              </span>
+
+              <Button
+                variant="secondary"
+                onClick={handleNextPage}
+                disabled={
+                  currentPage === totalPages
+                }
+              >
+                Next →
+              </Button>
+            </div>
+          </>
         )}
       </Card>
 
